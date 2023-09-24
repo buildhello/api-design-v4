@@ -1,0 +1,1561 @@
+* index.ts [contains the server] 
+** DONE Rudimentary Server 
+# +BEGIN_SRC js :tangle ./src/index.js     
+const http = require('http'); 
+//import http from "http";
+
+//request object and response object
+const server = http.createServer((req,res) => {
+console.log(req);
+console.log(res);
+//create a router, we want to do something when someone does a specific GET request
+
+if (req.method === 'GET' && req.url === '/') {
+//res.statusCode(200);
+console.log("from server");
+res.end();
+}
+});
+
+server.listen(3001, () => {
+console.log('server on http://localhost:3001');
+});
+# +END_SRC
+*** notes
+** DONE Remove the rudimentary server
+- you have to run a listen method to start the server
+
+# +BEGIN_SRC js :tangle ./src/index.js
+const app = require('./server');
+
+app.listen('3001', () => {
+console.log('hello on http://localhost/3001');
+});
+# +END_SRC
+** DONE Server three
+imports port
+# +BEGIN_SRC js :tangle ./src/index.js
+const app = require('./server');
+
+app.listen(port, () => {
+console.log(`hello on http://localhost/${port}`);
+});
+# +END_SRC
+
+** DONE server 4 src/index.mjs 
+# +BEGIN_SRC js :tangle ./src/index.mjs
+import {app, port} from './server.mjs';
+
+
+//const app = require('./server');
+//const port =  
+
+
+app.listen(port, () => {
+console.log(`hello on http://localhost/${port}`);
+});
+# +END_SRC
+
+** DONE server 5 src/index.ts [we change to typescript, also allows ES6 imports]
+# +BEGIN_SRC js :tangle ./src/index.ts
+import {app, port} from './server';
+
+app.listen(port, () => {
+console.log(`hello on http://localhost/${port}`);
+});
+# +END_SRC
+** server 6
+#+BEGIN_SRC js :tangle ./src/index.ts
+import {app} from './server';
+import config from './config';
+
+
+app.listen(config.port, () => {
+console.log(`hello on http://localhost/${config.port}`);
+});
+#+END_SRC
+* ./src/server [Express][creates server code]
+** notes
+- To create a server in express, install express
+- Create an express object (return value from the express() call)
+- Express adds some pretty cool stuff onto the req and res objects. 
+** DONE  Express app 1
+# +BEGIN_SRC js :tangle ./src/server.js
+const express = require('express');
+
+const app = express();
+
+app.get('./', (req,res) => {//any call to the root route runs this response
+console.log('Hello from express!');
+res.status(200)//you can set the status parameter
+res.json({message: 'Hello'});//comes with a .json method, to return json
+})
+
+module.exports = app;
+
+
+# +END_SRC
+** DONE  Express App 2
+- same as above but send back an html file
+
+# +BEGIN_SRC js :tangle ./src/server.mjs
+import express from 'express';
+import path from 'path';
+
+ 
+const app = express();
+const port = 3001;
+//const path = require("path");
+
+//app.use(express.static("static"));
+app.use(express.static('./public'));
+
+app.get('/', (req,res) => {//any call to the root route runs this response, the './' does not require a favicon,  '/' does
+console.log('Hello from express!');
+res.sendFile(path.resolve("pages/index.html"));//
+})
+
+
+
+//module.exports = app;
+export {app, port};
+# +END_SRC
+
+** ./src/server.ts [switch over to typescript]
+*** imports
+#+BEGIN_SRC js :tangle ./src/server.ts
+import express from 'express';
+import path from 'path';
+import router from './router'; 
+import morgan from 'morgan'; 
+import cors from 'cors';
+import * as dotenv from 'dotenv';
+import {protect} from './modules/auth';
+import {createNewUser, signin } from './handlers/user';
+//import protect from './src/modules/auth';
+#+END_SRC
+*** .env access 
+#+BEGIN_SRC js :tangle ./src/server.ts
+dotenv.config();
+#+END_SRC
+npm install dotenv --save-dev
+*** create the express app and specify port 
+if you want port flexibility
+#+BEGIN_SRC js :tangle ./src/server.ts
+const app = express();
+const port = 3001;
+#+END_SRC
+*** cors will give you option to block routes, ips, urls etc 
+#+BEGIN_SRC js :tangle ./src/server.ts
+app.use(cors());
+#+END_SRC
+npm install cors --save-dev
+
+*** morgan 
+- Morgan is a middeware that logs requests
+#+BEGIN_SRC js :tangle ./src/server.ts
+app.use(morgan('dev'));
+#+END_SRC
+npm install morgan --save-dev
+
+*** enable json and things like a query string and parameters on req URLS 
+You need express.json() to accept and reply with json
+#+BEGIN_SRC js :tangle ./src/server.ts
+app.use(express.json());
+app.use(express.urlencoded({extended: true}));
+#+END_SRC
+*** code to return on domain root  
+- demonstrates how to send a customize html page. 
+- such pages will be written with template engines like pug, for example
+#+BEGIN_SRC js :tangle ./src/server.ts
+app.get('/', (req,res) => {//any call to the root route runs this response, the './' does not require a favicon,  '/' does
+//res.json({message: 'hello'});
+console.log('Hello from express!');
+res.sendFile(path.resolve("pages/index.html"));//
+//test error
+//throw new Error('hello');
+})
+#+END_SRC
+*** protect your api routes with authentication  
+#+BEGIN_SRC js :tangle ./src/server.ts
+//we can put arguments before and after other arguments and they will run first. We put protect before router, if protect returns, it returns out of the app.use method
+//app.use('/api', router);
+app.use('/api', protect, router);//protect the entire router. If anyone wants to access this app, they have to be authenticated. 
+#+END_SRC
+*** Ensure users can be created and sign in 
+#+BEGIN_SRC js :tangle ./src/server.ts
+app.use('/user', createNewUser);
+app.use('/signin', signin);
+#+END_SRC
+*** introduce some error handling
+#+BEGIN_SRC js :tangle ./src/server.ts
+app.use((err,req,res,next) => {
+
+if (err.type === 'auth'){
+res.status(401).json({message: 'unauthorized'});
+} else if (err.type === 'input'){
+res.status(400).json({message:'invalid input'});
+} else {
+res.status(500).json({message:'oops, that is on us'});
+}
+
+});//end error handling
+#+END_SRC
+- needs to go at the bottomish of the app, so the handlers have something to next() to
+*** ensure you can use static files
+#+BEGIN_SRC js :tangle ./src/server.ts
+//app.use(express.static("static"));
+app.use(express.static('./public'));
+// app.use((req,res, next) => {
+// req.shhh_secret = 'doggy';//adds something to the request object
+// next();
+// })
+#+END_SRC
+*** export your app, port and server configuration to index.ts 
+- in the case you are using typescript
+#+BEGIN_SRC js :tangle ./src/server.ts
+//module.exports = app;
+export {app, port};
+#+END_SRC
+
+* HTML
+<link href="./css/style.css" rel="stylesheet">
+#+BEGIN_SRC html :mkdirp yes :tangle ./pages/index.html
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+	<title>title</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+
+	<style>
+body{
+width:100%;
+height:100%;
+background:blue;
+}
+
+
+</style> 
+
+</head>
+	<body>
+
+</body>
+	</html>
+#+END_SRC
+* tsconfig 
+** DONE development
+//    "strict": true,
+- remove strict: true, or you will be writing a lot of types
+# +BEGIN_SRC js :tangle ./tsconfig.json
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "outDir": "dist",
+    "lib": ["esnext"],
+    "esModuleInterop": true
+  }
+}
+# +END_SRC
+** production 
+#+BEGIN_SRC js :tangle ./tsconfig.json
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": false,
+    "lib": ["esnext"],
+    "esModuleInterop": true,
+    "declaration": true
+  },
+"include": ["src/**/*.ts"]
+}
+
+#+END_SRC
+* ./prisma/schema.prisma 
+** preamble  
+#+BEGIN_SRC prisma :tangle ./prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+#+END_SRC
+** User Model 
+#+BEGIN_SRC prisma :tangle ./prisma/schema.prisma
+model User {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  username  String    @unique
+  password  String
+  products  Product[]
+}
+#+END_SRC
+- not going to autoicrement (setting yourself up for trouble later)
+
+
+what is uuid? guaranteed unique string, why use it?
+autoincrement creates a number for each user, in some kind of order, which will create a mess when users are added and removed
+forcing unique strings means you don't have to come up wiht a system yourself to generate unique strings
+** Product model
+#+BEGIN_SRC prisma :tangle ./prisma/schema.prisma
+model Product {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  name        String   @db.VarChar(255)
+  belongsToId String
+  belongsTo   User     @relation(fields: [belongsToId], references: [id])
+  updates     Update[]
+
+  @@unique([id, belongsToId]) //you would do this to optimize index queries to product belonging to user
+}
+#+END_SRC
+
+- In this schema, products belong to users. Maybe the users sell their own products. Or the products exists only when the user pays for them
+** Update Model
+*** DONE orig
+# +BEGIN_SRC prisma :tangle ./prisma/schema.prisma
+enum UPDATE_STATUS {
+  IN_PROGRESS
+  LIVE
+  DEPRECATED
+  ARCHIVED
+}
+
+model Update {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  title   String        @db.VarChar(255)
+  body    String
+  status  UPDATE_STATUS @default(IN_PROGRESS)
+  version String?
+  asset   String
+
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id])
+  updatePoints UpdatePoint[]
+}
+# +END_SRC
+*** new
+#+BEGIN_SRC prisma :tangle ./prisma/schema.prisma
+enum UPDATE_STATUS {
+  IN_PROGRESS
+  SHIPPED
+  DEPRECATED
+}
+
+model Update {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  title   String
+  body    String
+  status  UPDATE_STATUS @default(IN_PROGRESS)
+  version String?
+  assets  String?
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  updatePoints UpdatePoint[]
+}
+#+END_SRC
+
+  @@unique([id, belongsToId])
+
+  //@@index([id, belongsToId])
+by default every field is required unless you put a ? on it
+** Update point model
+#+BEGIN_SRC prisma :tangle ./prisma/schema.prisma
+model UpdatePoint {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  name        String @db.VarChar(255)
+  description String
+
+  updateId String
+  update   Update @relation(fields: [updateId], references: [id])
+}
+
+#+END_SRC
+** DONE Post Model [THIS IS AN EXAMPLE NOT USED IN THE APP?]
+# +BEGIN_SRC prisma :tangle ./prisma/schema.prisma
+model Post {
+  // id field that is a number and automatically increments after its used
+  id        Int      @id @default(autoincrement())
+  // timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // limit to 255 for indexing UTF-8
+  title     String   @db.VarChar(255)
+  // optional
+  content   String?
+  published Boolean  @default(false)
+  // relation to another model
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  Int
+}
+# +END_SRC
+@id is a 'directive, or attribute'
+** notes
+generator client: clarifying the command line program
+datasource db:  specify the database type, add the environment variable to that URL
+Then specify prisma specific environment variable in .env 
+** can we make two references to the same model?
+- yes as long as the other reference exists on the other side as well
+* ./package.json 
+- note, he didn't add modules in his, since typescript apparently solves that problem
+** DONE 1
+# +BEGIN_SRC js :tangle ./package.json
+{
+  "name": "node_js_api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1", 
+    "dev": "nodemon src/index.ts"
+},
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "http": "^0.0.1-security"
+  },
+  "devDependencies": {
+    "@types/node": "^20.6.0",
+    "prisma": "^5.3.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
+}
+
+# +END_SRC
+
+- remove:   "type": "module", [that wants .mjs file, we use typescript which has ES6 modules baked in]
+- add: "dev": "ts-node src/index.ts",
+- remove: "dev": "ts-node src/index.ts",
+- add: "dev": "nodemon src/index.ts", 
+
+** DONE version 2 development
+# +BEGIN_SRC js :tangle ./package.json
+{
+  "name": "node_js_api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "dev": "nodemon src/index.ts"
+ },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/jest": "^29.5.5",
+    "@types/supertest": "^2.0.12",
+    "express": "^4.18.2",
+    "http": "^0.0.1-security",
+    "jest": "^29.7.0",
+    "lodash.merge": "^4.6.2",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.1"
+  },
+  "devDependencies": {
+    "@prisma/client": "^5.3.1",
+    "@types/node": "^20.6.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nodemon": "^3.0.1",
+    "prisma": "^5.3.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
+}
+# +END_SRC
+** version 3 production
+"build": "tsc -p tsconfig.json", //-p specifies project
+#+BEGIN_SRC js :tangle ./package.json
+{
+  "name": "node_js_api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "dev": "nodemon src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/jest": "^29.5.5",
+    "@types/supertest": "^2.0.12",
+    "express": "^4.18.2",
+    "http": "^0.0.1-security",
+    "jest": "^29.7.0",
+    "lodash.merge": "^4.6.2",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.1"
+  },
+  "devDependencies": {
+    "@prisma/client": "^5.3.1",
+    "@types/node": "^20.6.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nodemon": "^3.0.1",
+    "prisma": "^5.3.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
+}
+#+END_SRC
+* Routes
+** preamble 
+#+BEGIN_SRC js :tangle ./src/router.ts
+import { Router } from "express";
+import {body} from "express-validator";
+import {handleInputErrors} from "./middleware";
+import {getProducts, getOneProduct, createProduct, updateProduct, deleteProduct} from "./handlers/products";
+import {getUpdates, getOneUpdate, createUpdate, updateUpdate, deleteUpdate} from "./handlers/update";
+
+const router = Router();
+#+END_SRC
+
+- it's not a constructor (the capital R). It's just what they did with the library back then
+- express-validator is for library validation 
+** Product 
+*** DONE router.get( "/product",
+# +BEGIN_SRC js :tangle ./src/router.ts
+router.get("/product", (req, res) => {
+res.json({ message: req.shhh_secret });
+});
+# +END_SRC
+*** router.get("/product",);
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.get("/product", getProducts);
+#+END_SRC
+added the router handler to the route with req and res on the route handler
+*** router.get( "/product/:id",
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.get("/product/:id", getOneProduct);
+#+END_SRC
+*** router.post( "/product",
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.post("/product", body("name").isString(), handleInputErrors, createProduct);
+#+END_SRC
+**** DONE original router.post 
+**** What happens when we tested this, and how did we test it?
+- To test the createProduct, we created a new POST request in thunderclient (vscode api tester)
+- First we signed in to get a JWT,
+- We wrote the url: http://localhost:3001/api/product
+- entered the current JWT
+- and a body of {"name":"Note Stuff app"}
+- Because we authenticated, added a name property to our post, the middleware passed us through to the createProduct handler, which ran 
+the prisma query on the db, and we recieved the product creation response data as follows:
+
+{
+  "data": {
+    "id": "6aa0f407-01be-4c4d-b04c-da00fa092704",
+    "createdAt": "2023-09-22T22:32:32.830Z",
+    "name": "Note Stuff App",
+    "belongsToId": "ad146ff0-7973-4c6b-b339-c2ff62c726b8"
+  }
+}
+
+- it includes a timestamp, an id (unique), a name, and a belongsToId (which is our user Id)
+- We deleted this product during the delete product test <2023-09-22 Fri 15:48>
+
+
+# +BEGIN_SRC js :tangle ./src/router.ts
+router.post("/product", body("name").isString(), handleInputErrors, (req, res) => {});
+# +END_SRC
+*** router.put( "/product/:id",
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.put("/product/:id", 
+body("name").isString(), 
+handleInputErrors, 
+(req, res) => {
+});
+#+END_SRC
+*** router.delete( "/product/:id",
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.delete("/product/:id", deleteProduct);
+#+END_SRC
+
+**** DELETE Request
+http://localhost:3001/api/product/6aa0f407-01be-4c4d-b04c-da00fa092704
+returned:
+{
+  "data": {
+    "id": "6aa0f407-01be-4c4d-b04c-da00fa092704",
+    "createdAt": "2023-09-22T22:32:32.830Z",
+    "name": "Note Stuff App",
+    "belongsToId": "ad146ff0-7973-4c6b-b339-c2ff62c726b8"
+  }
+}
+
+** Update 
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.get("/update", getUpdates );
+
+router.get("/update/:id", getOneUpdate);
+
+router.post("/update", createUpdate );
+
+router.put("/update/:id", 
+body('title').optional(),
+body('body').optional(),
+body('status').isIn(['IN_PROGRESS', 'SHIPPED', 'DEPRECATED']).optional(),
+body('version').optional(),
+updateUpdate);
+
+router.delete("/update/:id", deleteUpdate);
+#+END_SRC
+** UpdatePoint 
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.get("/updatepoint", (req, res) => {});
+
+router.get("/updatepoint/:id", (req, res) => {});
+
+router.post("/updatepoint", 
+body('name').isString(),
+body('description').isString(),
+body('updateId').exists().isString(),
+(req, res) => {});
+
+router.put("/updatepoint/:id", 
+body('name').optional().isString(),
+body('description').optional().isString(),
+(req, res) => {});
+
+router.delete("/updatepoint/:id", (req, res) => {});
+#+END_SRC
+** error handling
+#+BEGIN_SRC js :tangle ./src/router.ts
+router.use((err, req, res, next) => {
+console.log(err);
+res.json({message: 'in router handler'});
+});
+#+END_SRC
+** export 
+#+BEGIN_SRC js :tangle ./src/router.ts
+export default router;
+#+END_SRC
+* Middleware
+- want to install some middleware we are going to use on our program
+** morgan
+Morgan is a middeware that logs requests. That all that it does and it's super useful.
+Pick the level of logging to you want (precise, dev, tiny)
+If used with no mount path, everything that goes through the app goes through morgan. 
+    
+npm install morgan --save-dev
+app.use(morgan('dev'));
+Morgan might return something like this: GET /api/product 200 2.450 ms - 21
+
+** input validation
+
+app.post("/product, body("name"), (req,res) => {
+});
+
+#+BEGIN_SRC js :mkdirp yes :tangle ./src/middleware.ts
+import {validationResult} from 'express-validator';
+
+export const handleInputErrors = (req, res, next) => {
+
+const errors = validationResult(req);
+
+if (!errors.isEmpty()) {
+res.status(400);
+res.json({errors:errors.array()});
+} else{
+next();
+}
+
+}; 
+
+#+END_SRC
+** cors
+
+* Authentication [install some libraries] 
+** install authentication libraries
+npm install jsonwebtoken bcrypt dotenv
+
+** create JWT token    
+npm install jsonwebtoken --save-dev
+npm install bcrypt --save-dev
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/modules/auth.ts
+import jwt from 'jsonwebtoken';
+import * as bcrypt from "bcrypt";
+
+export const createJWT = (user) =>  {
+const token = jwt.sign({id: user.id,username: user.name},process.env.JWT_SECRET);
+return token;
+} 
+
+#+END_SRC
+** Notes 
+auth tend to be all used together
+Makes one directory and one file for all the auth
+** create custom middleware to convert user credentials into ?
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/modules/auth.ts
+export const protect = (req, res, next) => {
+  const bearer = req.headers.authorization;//if there are authorization headers on request object
+
+  if (!bearer) {
+    res.status(401);
+    res.send("Not authorized Moron");
+    return;
+  }//guard, returns out of function if no authorization
+//protect is denying anything that doesn't have a bearer token on it
+
+const [, token] = bearer.split(" ");//destructure into token the second position of split on bearer, must be a space before the secret?
+  if (!token) {
+    console.log("here");
+    res.status(401);
+    res.send("Not valid token");
+    return;
+  }//if destructuring fails, get lost  
+
+
+//is it a jwt signed 
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);//relies on jwt.veryify method to match token from header with secret_token
+    req.user = payload;
+    console.log(payload);
+    next();
+    return;
+  } catch (e) {
+    console.error(e);
+    res.status(401);
+    res.send("Not authorized Stupid");
+    return;
+  }
+
+};
+#+END_SRC
+
+*** notes 
+You cannot hit this route unless you have signed up, made an account, got a jwt, sent us a jwt, your web token checks out, it gives us back a real id that matches who you say are, and then you can access this route.  
+So that's what this middlewares going to do. And we can put that infront of any route that we want to happen. 
+Basically, you want to access anything in our database, your jwt has to match up, you gotta be signed in
+** User creation helpers  
+*** reason
+You need a user to be able to sign up. They must be able to register into the system
+*** hashusername helper functions
+- storing username and password unhashed in database is not cool
+- you need to install bcrpt and import from it at top of auth.ts
+npm install bcrypt --save-dev
+
+import * as bcrypt from "bcrypt";
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/modules/auth.ts
+export const comparePasswords = (password, hash) => {
+  return bcrypt.compare(password, hash);//returns a promise that is true or false if the passed in password matches the password in the data bast
+};
+
+export const hashPassword = (password) => {
+  return bcrypt.hash(password, 5);
+};
+#+END_SRC
+* Handlers
+** ./src/db.ts - helper file [prisma client]
+1st install:
+npm install @prisma/client
+
+import {PrismaClient} from '@prisma/client'; --save-dev
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/db.ts
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient();
+export default prisma;
+#+END_SRC
+** User creation .src/handers/user.ts
+*** imports
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/user.ts
+import prisma from "../db";
+import { createJWT, comparePasswords, hashPassword } from "../modules/auth";
+#+END_SRC
+*** DONE createNewUser
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/user.ts
+export const createNewUser = async (req, res) => {//database queries are always async
+const hash = await hashPassword(req.body.password);
+
+const user = await prisma.user.create({
+    data: {
+      username: req.body.username,
+      password: await hashPassword(req.body.password)
+    },
+  });//apparently 
+
+  const token = createJWT(user);
+  res.json({ token });
+};
+# +END_SRC
+*** createNewUser with error handling
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/user.ts
+export const createNewUser = async (req, res, next) => {//database queries are always async
+try {
+
+const user = await prisma.user.create({
+    data: {
+      username: req.body.username,
+      password: await hashPassword(req.body.password)
+    },
+  });//apparently 
+  
+const token = createJWT(user);
+res.json({ token });
+} catch (e) {
+//you should inspect e, get the error message and write logic to respond, we will just assume user error for speed
+e.type = 'input';     
+next(e);
+}
+};
+#+END_SRC 
+*** signin User verification
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/user.ts
+export const signin = async (req, res) => {
+const user = await prisma.user.findUnique({
+where: { username: req.body.username },
+});
+
+const isValid = await comparePasswords(req.body.password, user.password);
+
+if (!isValid) {
+    res.status(401);
+    res.send("Invalid username or password NOPE");
+    return;
+}
+
+const token = createJWT(user);
+res.json({ token });
+};
+#+END_SRC
+*** DONE signin User verification with error handling
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/user.ts
+export const signin = async (req, res) => {
+const user = await prisma.user.findUnique({
+where: { username: req.body.username },
+});
+
+const isValid = await comparePasswords(req.body.password, user.password);
+
+if (!isValid) {
+    res.status(401);
+    res.send("Invalid username or password NOPE");
+    return;
+}
+
+const token = createJWT(user);
+res.json({ token });
+};
+# +END_SRC
+** Products [API route handler functions for interactions between user and database]
+- if you have a users id how can you gets all the products for that user
+- we run a query where belongsToId matches the userID 
+- we're going to query users tables in the getProducts
+*** imports
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+import prisma from '../db';
+#+END_SRC
+*** //get all the products
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const getProducts = async (req,res) => {
+const user = await prisma.user.findUnique({
+where: {
+    id: req.user.id
+},
+    include: {
+    products: true
+}
+});
+//res.json(user.products);//if you send this line back w/o prefixing the data, whenever the clients gets the data, it's always going to be a different shape. This time an array, next time an object
+res.json({data: user.products});//in this case it is always an object
+};  
+#+END_SRC
+*** DONE //get all the products [error handling]
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const getProducts = async (req,res) => {
+const user = await prisma.user.findUnique({
+where: {
+    id: req.user.id
+},
+    include: {
+    products: true
+}
+});
+//res.json(user.products);//if you send this line back w/o prefixing the data, whenever the clients gets the data, it's always going to be a different shape. This time an array, next time an object
+res.json({data: user.products});//in this case it is always an object
+};  
+# +END_SRC
+*** //get one producut
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const getOneProduct = async (req,res) => {
+const id = req.params.id;//params is the route parameter (anything with a :), urlencoded turns parameters into an object 'params' for us
+//query the product table (collection in mongo), get product scoped to the user and has the id 
+
+const product = await prisma.product.findFirst({
+where: {
+    id,
+    belongsToId: req.user.id
+}
+});
+//res.json(user.products);//if you send this line back w/o prefixing the data, whenever the clients gets the data, it's always going to be a different shape. This time an array, next time an object
+res.json({data: product});//in this case it is always an object
+};  
+#+END_SRC
+*** DONE //get one product [error handling]
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const getOneProduct = async (req,res) => {
+const id = req.params.id;//params is the route parameter (anything with a :), urlencoded turns parameters into an object 'params' for us
+//query the product table (collection in mongo), get product scoped to the user and has the id 
+
+const product = await prisma.product.findFirst({
+where: {
+    id,
+    belongsToId: req.user.id
+}
+});
+//res.json(user.products);//if you send this line back w/o prefixing the data, whenever the clients gets the data, it's always going to be a different shape. This time an array, next time an object
+res.json({data: product});//in this case it is always an object
+};  
+# +END_SRC
+*** DONE //create a product
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const createProduct = async (req,res) => {
+const product = await prisma.product.create({
+data: {//what data are we giving prisma to create something
+name: req.body.name,
+belongsToId: req.user.id
+}
+});
+res.json({data: product});
+};
+# +END_SRC
+*** //create a product [error handling]
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const createProduct = async (req,res, next) => {
+try {
+const product = await prisma.product.create({
+data: {//what data are we giving prisma to create something
+name: req.body.name,
+belongsToId: req.user.id
+}
+});
+res.json({data: product});
+} catch (e) {
+next(e);    
+}
+};
+#+END_SRC
+- creating error handling for createProduct, which has input validation
+- it will never run unless the input validation passes
+
+
+
+*** //update product
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const updateProduct = async (req,res) => {
+const updated = await prisma.product.update({
+where: {//this is how you find it
+id_belongsToId: {
+id: req.params.id,
+belongsToId: req.user.id
+} 
+},
+data: {//this is the data you need to update it with
+name: req.body.name
+}
+});
+res.json({data: updated});//send back the things you updated with the updates on it, otherwise the client is probably just going to make another request back to the server to get the data 
+};
+#+END_SRC
+update is a find and a write at the same time, we have to use the where and the data
+*** DONE //update product [error handling]
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const updateProduct = async (req,res) => {
+const updated = await prisma.product.update({
+where: {//this is how you find it
+id_belongsToId: {
+id: req.params.id,
+belongsToId: req.user.id
+} 
+},
+data: {//this is the data you need to update it with
+name: req.body.name
+}
+});
+res.json({data: updated});//send back the things you updated with the updates on it, otherwise the client is probably just going to make another request back to the server to get the data 
+};
+# +END_SRC
+update is a find and a write at the same time, we have to use the where and the data
+*** //delete product
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const deleteProduct = async (req,res) => {
+const deleted = await prisma.product.delete({
+where: {
+id_belongsToId: {
+id: req.params.id,
+belongsToId: req.user.id
+} 
+}
+});
+res.json({data: deleted});//send back the things you updated with the updates on it, otherwise the client is probably just going to make another request back to the server to get the data
+};
+#+END_SRC
+//delete is a findUnique operation, you need to ensure you index your query parameters in your schema 
+
+*** DONE //delete product [error handling]
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/products.ts
+export const deleteProduct = async (req,res) => {
+const deleted = await prisma.product.delete({
+where: {
+id_belongsToId: {
+id: req.params.id,
+belongsToId: req.user.id
+} 
+}
+});
+res.json({data: deleted});//send back the things you updated with the updates on it, otherwise the client is probably just going to make another request back to the server to get the data
+};
+# +END_SRC
+//delete is a findUnique operation, you need to ensure you index your query parameters in your schema 
+** Updates
+*** imports
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+import prisma from '../db';
+#+END_SRC
+*** //getOneUpdate
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const getOneUpdate = async (req,res) => {
+const update = await prisma.update.findUnique({
+where: {
+id: req.params.id
+}
+});
+
+res.json({data: update});
+};  
+#+END_SRC
+*** DONE //getOneUpdate [error handling]
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const getOneUpdate = async (req,res) => {
+const update = await prisma.update.findUnique({
+where: {
+id: req.params.id
+}
+});
+
+res.json({data: update});
+};  
+# +END_SRC
+*** //getUpdates 
+[wasted route, why would we get all the updates across all products for a specific user?]
+- not in our logic, but do anyway for example
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const getUpdates = async (req,res) => {
+const products = await prisma.product.findMany({
+where: {//this is how you find it
+belongsToId: req.user.id
+},
+include: {
+updates:true
+} 
+});
+
+const updates = products.reduce((allUpdates, product) => {
+return [...allUpdates, ...product.updates];
+}, []);//I don't envision this line, it's a nested object containing all products belonging to a user, and for each product that has updates, an array of those updates
+//every product belonging to a user that was updated
+res.json({data: updates});
+};
+#+END_SRC
+**** notes
+Scott says don't do this. If you have to do this after coming out of a database, you're doing it wrong. 
+- The database should do that work. You do not want your server side logic to store 20,000 products in memory 
+- What if you get hundreds of thousands of requests?  
+- tell tale sign of you don't have the appropriate schemea set up to get the things that you need. 
+- You're just trying to make it so generic that you end up sacrificing optimal querying, because you need the routes to be generic enough. 
+- But if you were doing something a little more specific, not REST, then you could tailor this query and the schema to reflect what you need
+
+**** Imperfections
+**** break out of the simplicity of REST
+- build out the query string to request product updates based on specific users, and he talks about 
+building out your own query language and then adding on top of that
+*** DONE //getUpdates [error handling] 
+[wasted route, why would we get all the updates across all products for a specific user?]
+- not in our logic, but do anyway for example
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const getUpdates = async (req,res) => {
+const products = await prisma.product.findMany({
+where: {//this is how you find it
+belongsToId: req.user.id
+},
+include: {
+updates:true
+} 
+});
+
+const updates = products.reduce((allUpdates, product) => {
+return [...allUpdates, ...product.updates];
+}, []);//I don't envision this line, it's a nested object containing all products belonging to a user, and for each product that has updates, an array of those updates
+//every product belonging to a user that was updated
+res.json({data: updates});
+};
+# +END_SRC
+*** //createUpdate
+- you need to include a name, title, and id, of product you want to update in the body 
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const createUpdate = async (req,res) => {
+
+const product = await prisma.product.findUnique({
+where: {
+id: req.body.productId
+}
+});
+
+if(!product){
+//product does not belong to user
+return res.json({message:'nope'});
+}
+
+const update = await prisma.update.create({
+data: {
+title: req.body.title,
+body: req.body.body,
+product: {connect: {id:product.id}}
+}});
+ 
+res.json({data: update});
+};
+#+END_SRC
+**** notes
+*** DONE //createUpdate [error handling]
+- you need to include a name, title, and id, of product you want to update in the body 
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const createUpdate = async (req,res) => {
+
+const product = await prisma.product.findUnique({
+where: {
+id: req.body.productId
+}
+});
+
+if(!product){
+//product does not belong to user
+return res.json({message:'nope'});
+}
+
+const update = await prisma.update.create({
+data: {
+title: req.body.title,
+body: req.body.body,
+product: {connect: {id:product.id}}
+}});
+ 
+res.json({data: update});
+};
+# +END_SRC
+*** //updateUpdate
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const updateUpdate = async (req,res) => {
+const products = await prisma.product.findMany({
+where: {
+belongsToId: req.user.id
+}, 
+include: {
+updates: true
+}
+});
+
+const updates = products.reduce((allUpdates, product) => {
+return [...allUpdates, ...product.updates];
+}, []);
+
+const match = updates.find(update => update.id === req.params.id);
+
+if (!match){
+//handle this 
+return res.json({message:"nope"});
+} //guard, returns out of the function if there is not match
+
+const updatedUpdate = await prisma.update.update({
+where: {
+id: req.params.id
+},  
+data: req.body
+});
+
+res.json({data: updatedUpdate});
+};
+#+END_SRC
+*** DONE //updateUpdate [error handling]
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const updateUpdate = async (req,res) => {
+const products = await prisma.product.findMany({
+where: {
+belongsToId: req.user.id
+}, 
+include: {
+updates: true
+}
+});
+
+const updates = products.reduce((allUpdates, product) => {
+return [...allUpdates, ...product.updates];
+}, []);
+
+const match = updates.find(update => update.id === req.params.id);
+
+if (!match){
+//handle this 
+return res.json({message:"nope"});
+} //guard, returns out of the function if there is not match
+
+const updatedUpdate = await prisma.update.update({
+where: {
+id: req.params.id
+},  
+data: req.body
+});
+
+res.json({data: updatedUpdate});
+};
+# +END_SRC
+*** //deleteUpdate
+#+BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const deleteUpdate = async (req,res) => {
+
+const products = await prisma.product.findMany({
+where: {
+belongsToId: req.user.id
+}, 
+include: {
+updates: true
+}
+});
+
+const updates = products.reduce((allUpdates, product) => {
+return [...allUpdates, ...product.updates];
+}, []);
+
+const match = updates.find(update => update.id === req.params.id);
+
+if (!match){
+//handle this 
+return res.json({message:"nope"});
+} //guard, returns out of the function if there is not match
+
+const deleted = await prisma.update.delete({
+where: {
+id: req.params.id
+}
+
+});
+
+res.json({data: deleted});
+
+};
+#+END_SRC
+*** DONE //deleteUpdate [error handling]
+# +BEGIN_SRC js :mkdirp yes  :tangle ./src/handlers/update.ts
+export const deleteUpdate = async (req,res) => {
+
+const products = await prisma.product.findMany({
+where: {
+belongsToId: req.user.id
+}, 
+include: {
+updates: true
+}
+});
+
+const updates = products.reduce((allUpdates, product) => {
+return [...allUpdates, ...product.updates];
+}, []);
+
+const match = updates.find(update => update.id === req.params.id);
+
+if (!match){
+//handle this 
+return res.json({message:"nope"});
+} //guard, returns out of the function if there is not match
+
+const deleted = await prisma.update.delete({
+where: {
+id: req.params.id
+}
+
+});
+
+res.json({data: deleted});
+
+};
+# +END_SRC
+*** test updates
+**** create product
+POST http://localhost:3001/api/product
+
+{
+"name":"My car app"
+}
+
+
+
+returns:
+
+{
+  "data": {
+    "id": "aaed52c5-c241-4076-be27-f5f339e93752",
+    "createdAt": "2023-09-23T01:26:15.539Z",
+    "name": "My car app",
+    "belongsToId": "ad146ff0-7973-4c6b-b339-c2ff62c726b8"
+  }
+}
+**** run an update 
+method: POST
+url: http://localhost:3001/api/update
+
+body:
+
+{"productId": "aaed52c5-c241-4076-be27-f5f339e93752", "title": "New Feature Who This?", "body": "This is the best feature yet."}
+
+return: 
+
+
+{
+  "data": {
+    "id": "59a3bd78-b74c-43f3-9034-b1c16783c92f",
+    "createdAt": "2023-09-23T01:59:26.517Z",
+    "updatedAt": "2023-09-23T01:59:26.517Z",
+    "title": "New Feature Who This?",
+    "body": "This is the best feature yet.",
+    "status": "IN_PROGRESS",
+    "version": null,
+    "assets": null,
+    "productId": "aaed52c5-c241-4076-be27-f5f339e93752"
+  }
+}
+
+* configuration
+** ./src/config/index.ts
+npm install lodash.merge --save
+#+BEGIN_SRC js :mkdirp yes :tangle ./src/config/index.ts
+import merge from "lodash.merge";
+
+//make sure NODE_ENV is set, if has never been set, default to development
+process.env.NODE_ENV = process.env.NODE_ENV || "development";
+
+//you could have a staging environment on your local machine (you can switch between staging and local to test before deploy to production or production/staging)
+//default staging to local
+const stage = process.env.STAGE || "local";
+
+let envConfig;
+
+if (stage === "production") {//if you're running in the cloud on a live server get production config
+envConfig = require("./prod").default;//use require, since server may not have modules or typescript configured
+} else if (stage === "staging") {
+envConfig = require("./staging").default;
+} else if (stage === "testing") {
+envConfig = require("./testing").default;
+} else {
+envConfig = require("./local").default;
+}
+
+/* switch syntax
+switch: (stage){
+case: "production"
+envConfig = require("./prod").default;
+break;
+case: "staging"
+envConfig = require("./staging").default;
+break;
+case: "testing"
+envConfig = require("./testing").default;
+break;
+default:
+envConfig = require("./local").default;
+}
+*/
+
+//all the environment variables we want in our app
+const defaultConfig = {
+    stage, //will always be whatever stage is
+    env: process.env.NODE_ENV, 
+    port: 3001,
+    secrets: {
+        dbUrl: process.env.DATABASE_URL,
+        jwt: process.env.JWT_SECRET},
+    logging: false,
+};
+
+export default merge(defaultConfig, envConfig);
+#+END_SRC
+- any variables declared in defaultConfig can be overwritten when envConfig is imported
+- you can, for example, overwrite the default port with process.env.PORT, which you will have to do in production
+
+** ./src/config/local.ts
+#+BEGIN_SRC js :mkdirp yes :tangle ./src/config/local.ts
+export default {
+port: 3001
+}
+#+END_SRC
+- turn off analytics middleware 
+
+** ./src/config/staging.ts
+#+BEGIN_SRC js :mkdirp yes :tangle ./src/config/staging.ts
+export default {
+port: 5000
+}
+#+END_SRC
+** ./src/config/prod.ts
+#+BEGIN_SRC js :mkdirp yes :tangle ./src/config/prod.ts
+export default {
+port: process.env.PORT
+}
+#+END_SRC
+- turn on analytics middleware
+
+** ./src/config/testing.ts
+#+BEGIN_SRC js :mkdirp yes :tangle ./src/config/testing.ts
+export default {
+port: 3001
+}
+#+END_SRC
+* Testing
+** install jest and supertest
+npm install supertest @types/supertest --save-dev 
+npm install jest @types/jest ts-jest --save-dev
+** create jest config
+npx ts-jest config:init
+** Jest config is created from line above 
+#+BEGIN_SRC js :tangle ./jest.config.js
+/** @type {import('ts-jest').JestConfigWithTsJest} */
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+};
+
+#+END_SRC
+** writing a test in jest
+#+BEGIN_SRC js :mkdirp yes :tangle ./src/handlers/__tests__/user.test.ts    
+describe('user handler', () => {
+it('write a description of an outcome so you know what failed or passed after the test', () => {});//same functionality as test()
+//test()//same functionality as it()
+expect(1).toBe(1); //write your assertions with the built-in function expect.
+})
+#+END_SRC
+The functions used in the test are global functions created by jest because we are testing in the jest environment. 
+The variables are going to be given to us at runtime.
+** DONE integration testing [setup]
+- use jest and supertest to run integration tests. Tests the entire route
+# +BEGIN_SRC js :mkdirp yes :tangle ./__tests__/routes.test.ts
+import {app} from '../src/server';
+import supertest from 'supertest';
+
+describe('GET /', () => {
+it('Should send back some data!', async () => {
+const res = await supertest(app) //res is the result as if the route was tested.
+.get("/"); //route tested, method off supertest
+expect(res.body.message).toBe('hello');//we expect the request to return hello
+
+});
+
+})
+# +END_SRC
+- you can spin up the server yourself, and make an API call to the server, 
+or you can import your APP and express will do all that stuff for us 
+*** DONE example
+# +BEGIN_SRC js :mkdirp yes :tangle ./__tests__/routes.test.ts
+import app from "../server";
+import request from "supertest";
+
+describe("POST /user", function () {
+  it("responds with json", async () {
+    const res = await request(app)
+      .post("/user")
+      .send({ username: "hello", password: "hola" })
+      .set("Accept", "application/json")
+
+    expect(res.headers["Content-Type"]).toMatch(/json/);
+    expect(res.status).toEqual(200);
+  });
+});
+
+# +END_SRC
+** integration testing [create user]
+
+#+BEGIN_SRC js :mkdirp yes :tangle ./__tests__/user.test.ts
+import * as user from '../src/handlers/user';
+import supertest from 'supertest';
+
+describe('POST /', () => {
+it('should create a new user', async () => {
+const req = {body: {username: 'hello', password: 'hi'}};//mocked out request object
+const res = {json({token}){//json() can be turned into a spy, a function that will show that it has been accessed and to what extent
+expect(token).toBeTruthy();//you need to tell jest it should expect to see atleast one expect call
+}};//mocked out response object
+
+
+const newUser = await user.createNewUser(req, res, () => {//mimics next
+}); //mimics newUser, but it isn't going to be a newUser, 
+
+
+});//end it
+})//end describe
+
+
+#+END_SRC
+- you can spin up the server yourself, and make an API call to the server, 
+or you can import your APP and express will do all that stuff for us 
+
+
+*** DONE example
+# +BEGIN_SRC js :mkdirp yes :tangle ./__tests__/routes.test.ts
+import app from "../server";
+import request from "supertest";
+
+describe("POST /user", function () {
+  it("responds with json", async () {
+    const res = await request(app)
+      .post("/user")
+      .send({ username: "hello", password: "hola" })
+      .set("Accept", "application/json")
+
+    expect(res.headers["Content-Type"]).toMatch(/json/);
+    expect(res.status).toEqual(200);
+  });
+});
+
+# +END_SRC
+
+* Deployment
+Scott is translating typescript to JavaScript for the server. He generates a dist directory. 
+He backs up his entire app to github, but you should add the entire directory to .gitignore.
+
+
+
+
